@@ -52,6 +52,8 @@ export type RateLimitPolicyName =
   | "settlementCreate"
   | "settlementConfirm"
   | "settlementExecute"
+  | "withdrawalCreate"
+  | "withdrawalConfirm"
   | "treasurySubmit"
   | "treasuryPropose"
   | "anchorInit"
@@ -140,6 +142,29 @@ export function rateLimitPolicies(): Record<RateLimitPolicyName, RateLimitPolicy
       timeWindow: config.RATE_LIMIT_SETTLEMENT_EXECUTE_WINDOW_MS,
       keyBy: "user-or-ip",
       prefix: "settlement.execute",
+      hook: "preHandler",
+    },
+    // Its own bucket rather than sharing the settlement budgets: a withdrawal
+    // writes a row, fans out to the anchor's TOML and interactive server, and
+    // opens an obligation the user must fund — retrying a settlement must not
+    // spend this allowance, and vice versa. Looser than confirm (below), which
+    // carries an already-signed envelope and is the step brute-forcing a
+    // signature would target.
+    withdrawalCreate: {
+      max: config.RATE_LIMIT_WITHDRAWAL_CREATE_MAX,
+      timeWindow: config.RATE_LIMIT_WITHDRAWAL_CREATE_WINDOW_MS,
+      keyBy: "user-or-ip",
+      prefix: "withdrawal.create",
+      hook: "preHandler",
+    },
+    // The tightest withdrawal budget: confirm hands a signed SEP-10 envelope
+    // to the anchor's web-auth endpoint — the same per-signature economics as
+    // settlement confirmation, so it matches settlementConfirm's numbers.
+    withdrawalConfirm: {
+      max: config.RATE_LIMIT_WITHDRAWAL_CONFIRM_MAX,
+      timeWindow: config.RATE_LIMIT_WITHDRAWAL_CONFIRM_WINDOW_MS,
+      keyBy: "user-or-ip",
+      prefix: "withdrawal.confirm",
       hook: "preHandler",
     },
     treasurySubmit: {

@@ -11,6 +11,7 @@ import { stellar } from "../services/stellar";
 import { auditTx } from "../services/audit";
 import { applyWithdrawalTransition } from "../services/withdrawal-status";
 import { isPositive } from "../services/money";
+import { rateLimited } from "../lib/rate-limit";
 
 const SUPPORTED_ASSET_CODES = ["USDC", "XLM"] as const;
 
@@ -47,7 +48,28 @@ function serializeWithdrawal(withdrawal: any) {
 export default async function withdrawalRoutes(app: FastifyInstance) {
   const withdrawalModel = (prisma as any).withdrawal;
 
-  app.post("/withdraw", { preHandler: [app.authenticate] }, async (req) => {
+  // Both withdrawal POSTs are on-chain payment flows, so each carries its own
+  // @fastify/rate-limit policy instead of the blanket global allowance
+  // (issue #403). Both run as a preHandler — after `app.authenticate` has
+  // populated req.user — so the bucket key is the authenticated SEP-10 public
+  // key and one wallet's retries never draw on another's budget.
+  //
+  // Starting a withdrawal (POST /withdraw) is cheap for the client but fans
+  // out server-side to the anchor's TOML file and interactive server, writes a
+  // row, and opens an obligation the user must fund — so it is budgeted well
+  // below the global default while still absorbing the legitimate retries a
+  // wallet app makes while the interactive flow is open.
+  const createLimit = rateLimited("withdrawalCreate");
+  // Confirming one (POST /withdraw/:id/confirm) is the security-critical step:
+  // it hands a signed SEP-10 envelope to the anchor's web-auth endpoint, the
+  // same per-signature economics as settlement confirmation, so it gets the
+  // tightest budget. Its own bucket prefix keeps it independent of the create
+  // budget: a client legitimately retrying the interactive flow must not spend
+  // the allowance it needs to confirm, and brute-forcing signatures cannot
+  // exhaust the create bucket.
+  const confirmLimit = rateLimited("withdrawalConfirm");
+
+  app.post("/withdraw", { ...createLimit, preHandler: [app.authenticate] }, async (req) => {
     const auth = requireUser(req);
     const body = withdrawalBody.parse(req.body);
 
@@ -125,7 +147,7 @@ export default async function withdrawalRoutes(app: FastifyInstance) {
 
   app.post(
     "/withdraw/:id/confirm",
-    { preHandler: [app.authenticate] },
+    { ...confirmLimit, preHandler: [app.authenticate] },
     async (req) => {
       const auth = requireUser(req);
       const { id } = z.object({ id: z.string().min(1) }).parse(req.params);

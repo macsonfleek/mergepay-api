@@ -274,6 +274,17 @@ const schema = z.object({
   RATE_LIMIT_SETTLEMENT_CONFIRM_WINDOW_MS: z.coerce.number().int().positive().max(MAX_RATE_LIMIT_WINDOW_MS).default(60000),
   RATE_LIMIT_SETTLEMENT_EXECUTE_MAX: z.coerce.number().int().positive().max(100000).default(20),
   RATE_LIMIT_SETTLEMENT_EXECUTE_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+  // Withdrawal submission (POST /withdraw) fans out to the anchor's TOML and
+  // interactive server and opens an obligation the user must fund, so it is
+  // budgeted separately from the global allowance but looser than settlement
+  // confirm, which submits an already-signed envelope.
+  RATE_LIMIT_WITHDRAWAL_CREATE_MAX: z.coerce.number().int().positive().max(100000).default(15),
+  RATE_LIMIT_WITHDRAWAL_CREATE_WINDOW_MS: z.coerce.number().int().positive().max(MAX_RATE_LIMIT_WINDOW_MS).default(60000),
+  // Withdrawal confirm hands a signed SEP-10 envelope to the anchor's web-auth
+  // endpoint: the tightest withdrawal budget, matching the per-signature
+  // economics of settlement confirmation.
+  RATE_LIMIT_WITHDRAWAL_CONFIRM_MAX: z.coerce.number().int().positive().max(100000).default(10),
+  RATE_LIMIT_WITHDRAWAL_CONFIRM_WINDOW_MS: z.coerce.number().int().positive().max(MAX_RATE_LIMIT_WINDOW_MS).default(60000),
   // Expense creation writes an expense plus one share row per participant and
   // opens a settlement obligation, so it gets its own budget rather than
   // spending the caller's global allowance. It is looser than the settlement

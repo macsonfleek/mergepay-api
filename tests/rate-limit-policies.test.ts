@@ -33,6 +33,8 @@ const EXPENSIVE_POLICIES: RateLimitPolicyName[] = [
   "settlementCreate",
   "settlementConfirm",
   "settlementExecute",
+  "withdrawalCreate",
+  "withdrawalConfirm",
   "treasurySubmit",
   "treasuryPropose",
   "anchorInit",

@@ -165,6 +165,11 @@ describe("sensitive routes carry the tighter per-route budget", () => {
     ["POST", "/groups/:id/treasury/deposit", "settlementCreate"],
     ["POST", "/groups/:id/treasury/withdraw", "settlementCreate"],
     ["POST", "/treasury-transactions/:id/confirm", "treasurySubmit"],
+    // Withdrawal submission (issue #403): the SEP-24 withdrawal start and its
+    // signed-envelope confirm, each budgeted per wallet like the other
+    // payment writes.
+    ["POST", "/withdraw", "withdrawalCreate"],
+    ["POST", "/withdraw/:id/confirm", "withdrawalConfirm"],
     // Treasury multisig: creating a proposal is bounded separately from adding
     // a signature to one.
     ["POST", "/api/treasury/proposals", "treasuryPropose"],
